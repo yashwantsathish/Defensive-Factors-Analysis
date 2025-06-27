@@ -1,0 +1,212 @@
+---
+title: "DefensiveRatingStudy"
+format: html
+editor: visual
+---
+
+# Load libraries
+
+```{r}
+# remotes::install_github("sportsdataverse/hoopR")
+library(hoopR)
+library(dplyr)
+library(purrr)
+library(broom)
+library(ggplot2)
+library(scales)
+library(showtext)
+library(ggtext)
+```
+
+# Get team advanced stats for 2024-25
+
+```{r}
+team_stats <- nba_leaguedashteamstats(
+  season = "2024-25",
+  measure_type = "Advanced",
+  per_mode = "Per100Possessions"
+)
+
+df <- team_stats$LeagueDashTeamStats
+
+cleaned_data <- df %>%
+  select(
+    TEAM_NAME,
+    DEF_RATING,
+    DREB_PCT,
+    TM_TOV_PCT,
+    EFG_PCT
+  ) %>%
+  rename(
+    Team = TEAM_NAME,
+    DefRtg = DEF_RATING,
+    DRB = DREB_PCT,
+    Team_TOV = TM_TOV_PCT,
+    Team_eFG = EFG_PCT
+  )
+
+print(cleaned_data)
+```
+
+# Get opponent stats for 2024-25
+
+```{r}
+opp_stats <- nba_leaguedashteamstats(
+  season = "2024-25",
+  measure_type = "Opponent",
+  per_mode = "Per100Possessions"
+)
+
+opp_df <- opp_stats$LeagueDashTeamStats
+opp_clean <- opp_df %>%
+  mutate(across(starts_with("OPP_"), ~ as.numeric(.))) %>% 
+  transmute(
+    Team = TEAM_NAME,
+    Opp_eFG = (OPP_FGM + 0.5 * OPP_FG3M) / OPP_FGA,
+    Opp_TOV = OPP_TOV / (OPP_FGA + 0.44 * OPP_FTA + OPP_TOV),
+    Opp_FTRate = OPP_FTA / OPP_FGA
+  )
+```
+
+# Combine data for single-season model
+
+```{r}
+team_clean <- df %>%
+  select(TEAM_NAME, DEF_RATING, DREB_PCT) %>%
+  rename(
+    Team = TEAM_NAME,
+    DefRtg = DEF_RATING,
+    DRB = DREB_PCT
+  )
+
+final_data <- inner_join(team_clean, opp_clean, by = "Team") %>%
+  mutate(
+    DefRtg = as.numeric(DefRtg),
+    DRB = as.numeric(DRB)
+  )
+```
+
+# Fit single-season model
+
+```{r}
+model <- lm(DefRtg ~ DRB + Opp_eFG + Opp_TOV + Opp_FTRate, data = final_data)
+summary(model)
+```
+
+# Visualize single-season model coefficients
+
+```{r}
+tidy(model) %>%
+  filter(term != "(Intercept)") %>%
+  ggplot(aes(x = reorder(term, estimate), y = estimate)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Effect of Defensive Metrics on Defensive Rating",
+       x = "Metric", y = "Coefficient (per 1 unit increase)")
+```
+
+# Multiple-season data collection function
+
+```{r}
+get_season_data <- function(season) {
+  team_df <- nba_leaguedashteamstats(season = season, measure_type = "Advanced", per_mode = "Per100Possessions")$LeagueDashTeamStats %>%
+    select(TEAM_NAME, DEF_RATING, DREB_PCT) %>%
+    rename(Team = TEAM_NAME, DefRtg = DEF_RATING, DRB = DREB_PCT)
+
+  opp_df <- nba_leaguedashteamstats(season = season, measure_type = "Opponent", per_mode = "Per100Possessions")$LeagueDashTeamStats %>%
+    mutate(across(starts_with("OPP_"), ~ as.numeric(.))) %>%
+    transmute(
+      Team = TEAM_NAME,
+      Opp_eFG = (OPP_FGM + 0.5 * OPP_FG3M) / OPP_FGA,
+      Opp_TOV = OPP_TOV / (OPP_FGA + 0.44 * OPP_FTA + OPP_TOV),
+      Opp_FTRate = OPP_FTA / OPP_FGA
+    )
+
+  inner_join(team_df, opp_df, by = "Team") %>%
+    mutate(Season = season)
+}
+```
+
+# Combine data from 5 seasons
+
+```{r}
+seasons <- c("2020-21", "2021-22", "2022-23", "2023-24", "2024-25")
+
+full_data <- map_df(seasons, get_season_data) %>%
+  mutate(
+    DefRtg = as.numeric(DefRtg),
+    DRB = as.numeric(DRB),
+    Season = as.factor(Season)
+  )
+```
+
+# Fit model with standardized predictors and season controls
+
+```{r}
+model <- lm(DefRtg ~ scale(DRB) + scale(Opp_eFG) + scale(Opp_TOV) + scale(Opp_FTRate) + Season, data = full_data)
+summary(model)
+```
+
+# Prepare and plot coefficients (final visual)
+
+```{r}
+coef_data <- tidy(model) %>%
+  filter(term %in% c("scale(DRB)", "scale(Opp_eFG)", "scale(Opp_TOV)", "scale(Opp_FTRate)")) %>%
+  mutate(
+    Metric = recode(term,
+      "scale(DRB)" = "Defensive Rebounding %",
+      "scale(Opp_eFG)" = "Opponent eFG %",
+      "scale(Opp_TOV)" = "Opponent Turnover %",
+      "scale(Opp_FTRate)" = "Opponent Free Throw Rate"
+    ),
+    Direction = ifelse(estimate < 0, "Helps Defense", "Hurts Defense"),
+    Metric = factor(Metric, levels = rev(c(
+      "Opponent eFG %",
+      "Opponent Free Throw Rate",
+      "Defensive Rebounding %",
+      "Opponent Turnover %"
+    ))),
+    label = sprintf("%.1f", estimate)
+  )
+
+lims <- max(abs(coef_data$estimate)) + 0.5
+```
+
+# Final plot
+
+```{r}
+print(
+  ggplot(coef_data, aes(x = estimate, y = Metric, fill = Direction)) +
+    geom_col(width = 0.6, show.legend = FALSE) +
+    geom_text(
+      aes(label = label),
+      hjust = ifelse(coef_data$estimate > 0, -0.15, 1.05),
+      size = 4,
+      family = "roboto"
+    ) +
+    scale_fill_manual(values = c(
+      "Helps Defense" = "#2a9d8f",
+      "Hurts Defense" = "#d62828"
+    )) +
+    scale_x_continuous(
+      limits = c(-lims, lims),
+      breaks = seq(-lims, lims, by = 1),
+      labels = label_number()
+    ) +
+    labs(
+      title = "Which Defensive Stats Best Predict Team Defense?",
+      subtitle = "Green = improves defense (fewer points allowed); Red = hurts defense",
+      x = "Change in Defensive Rating (points per 100 possessions)",
+      y = NULL
+    ) +
+    theme_minimal(base_family = "roboto") +
+    theme(
+      plot.title = element_text(size = 18, face = "bold", hjust = 0),
+      plot.subtitle = element_text(size = 13, color = "#444444"),
+      axis.title.x = element_text(size = 13, margin = margin(t = 10)),
+      axis.text = element_text(size = 12),
+      plot.margin = margin(t = 40, r = 80, b = 20, l = 150)
+    ) +
+    coord_cartesian(clip = "off")
+)
+```
