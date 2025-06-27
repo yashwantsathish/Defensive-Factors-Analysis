@@ -17,7 +17,7 @@ To answer this and uncover the broader picture, this project evaluates how four 
 * **Opponent eFG%** is the strongest predictor of Defensive Rating — limiting opponent shot quality is crucial.
 * **Opponent Turnover %** significantly helps teams by reducing opponent shot volume.
 * **Defensive Rebounding %** contributes positively but has less impact compared to eFG% and TOV%.
-* **Opponent FT Rate** worsens defensive efficiency — teams that foul more give up easy points.
+* **Opponent FT Rate** worsens defensive efficiency: teams that foul more give up easy points.
 
 All predictors were standardized to make effect sizes comparable. A fixed-effects model adjusted for season-to-season shifts.
 
@@ -45,7 +45,8 @@ model <- lm(
 
 ## 📈 Final Visualization
 
-This plot shows how each metric affects Defensive Rating. Green bars indicate metrics that **help defense** (lower points allowed), while red bars **hurt defense**.
+This plot shows how each metric affects Defensive Rating. Green bars indicate metrics that **help defense** , while red bars **hurt defense**.
+![screenshot](./results.png)
 
 ---
 
