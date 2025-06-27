@@ -46,7 +46,7 @@ model <- lm(
 ## 📈 Final Visualization
 
 This plot shows how each metric affects Defensive Rating. Green bars indicate metrics that **help defense** , while red bars **hurt defense**.
-![screenshot](./results.png)
+![screenshot](Results.png)
 
 ---
 
