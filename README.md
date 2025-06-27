@@ -1,54 +1,84 @@
-# Defensive Efficiency: A Multi-Season Analysis of Key Predictors
+# 🏀 Defensive Efficiency: A Multi-Season Analysis of Key Predictors
 
-This project investigates the statistical drivers of team defensive efficiency in the NBA from 2020–21 through 2024–25. Using advanced and opponent metrics from the NBA Stats API, the analysis identifies which defensive factors most strongly influence a team's **Defensive Rating** (points allowed per 100 possessions).
+This project analyzes which defensive factors best predict **Defensive Rating** (points allowed per 100 possessions) across five NBA seasons (2020–21 to 2024–25). Using league-wide data and regression modeling, it provides actionable insights for coaches and analysts looking to optimize team defense.
 
 ---
 
-## 🎯 Purpose
+## 🎯 Project Purpose
 
-Prompted by a coach's question — *"Is defensive rebounding truly a key to great defense?"* — this study aims to answer that and more using league-wide data. By evaluating metrics over a five-season span, we provide robust insights that avoid year-to-year noise and offer clear direction for building or evaluating a defensive system.
+A coach asked: *"Is defensive rebounding actually a major contributor to team defense?"*
+
+To answer this and uncover the broader picture, this project evaluates how four key defensive stats — **Defensive Rebounding %, Opponent eFG%, Opponent Turnover %, and Opponent FT Rate** — influence Defensive Rating over five seasons.
 
 ---
 
 ## 📊 Key Findings
 
-- **Opponent Effective Field Goal % (eFG%)** has the strongest impact on Defensive Rating: teams that limit opponent shot quality perform better defensively.
-- **Opponent Turnover Rate** also significantly improves Defensive Rating by limiting shot attempts.
-- **Defensive Rebounding %** helps, but its impact is smaller in comparison to shot quality and turnovers.
-- **Opponent Free Throw Rate** worsens Defensive Rating, suggesting disciplined defense matters.
+* **Opponent eFG%** is the strongest predictor of Defensive Rating — limiting opponent shot quality is crucial.
+* **Opponent Turnover %** significantly helps teams by reducing opponent shot volume.
+* **Defensive Rebounding %** contributes positively but has less impact compared to eFG% and TOV%.
+* **Opponent FT Rate** worsens defensive efficiency — teams that foul more give up easy points.
 
-All variables were standardized for interpretability. The regression controls for season-to-season shifts in league trends.
-
----
-
-## 📦 Features
-
-- Data collected via [`hoopR`](https://github.com/sportsdataverse/hoopR) from NBA.com.
-- Custom opponent metrics calculated from box score-level team stats.
-- Multiple linear regression with standardization and seasonal controls.
-- Visualizations tailored for coaches and non-technical stakeholders.
+All predictors were standardized to make effect sizes comparable. A fixed-effects model adjusted for season-to-season shifts.
 
 ---
 
-## 📁 Structure
+## 🛠️ Technical Summary
 
-- `DefensiveRatingStudy.qmd` or `.Rmd`: Main script with all code blocks and commentary.
-- `figures/`: Contains presentation-ready plots.
-- `data/`: Raw and processed versions of season-by-season team metrics.
-- `report.html`: Rendered final output for easy web review.
+* **Data Source**: [`hoopR`](https://github.com/sportsdataverse/hoopR) R package (scrapes NBA Stats API)
+* **Seasons Covered**: 2020–21 through 2024–25
+* **Metrics Engineered**:
 
----
-
-## 🛠️ How It Works
+  * `Opponent eFG% = (FGM + 0.5 * 3PM) / FGA`
+  * `Opponent TOV% = TOV / (FGA + 0.44 * FTA + TOV)`
+  * `Opponent FT Rate = FTA / FGA`
+* **Model**: Multiple linear regression with standardized predictors and season fixed effects
 
 ```r
-# Load & join advanced + opponent data
-nba_leaguedashteamstats(...)
+model <- lm(
+  DefRtg ~ scale(DRB) + scale(Opp_eFG) + scale(Opp_TOV) + scale(Opp_FTRate) + Season,
+  data = full_data
+)
+```
 
-# Compute key opponent stats:
-# Opponent eFG% = (FGM + 0.5 * 3PM) / FGA
-# Opponent TOV% = TOV / (FGA + 0.44 * FTA + TOV)
-# Opponent FT Rate = FTA / FGA
+---
 
-# Run regression with season dummies:
-lm(DefRtg ~ scale(DRB) + scale(Opp_eFG) + scale(Opp_TOV) + scale(Opp_FTRate) + Season, data = full_data)
+## 📈 Final Visualization
+
+This plot shows how each metric affects Defensive Rating. Green bars indicate metrics that **help defense** (lower points allowed), while red bars **hurt defense**.
+
+---
+
+## 👌 For Coaches
+
+We used 5 years of NBA team data (2020–21 through 2024–25) to understand what best predicts great defense. Results confirm:
+
+* **Elite defenses limit shot quality** (eFG%) and **force turnovers**
+* **Fewer fouls** and **solid defensive rebounding** also contribute, but are less impactful
+
+Use this to emphasize areas that statistically matter most when building or evaluating your team defense.
+
+---
+
+## 🧠 Project Thinking
+
+This project was built to answer a key basketball analytics question: *"What defensive stats most strongly predict team success on defense?"*
+
+We:
+
+* Collected advanced and opponent stats from the NBA's last five seasons using the `hoopR` package
+* Built a regression model using standardized variables to compare relative impact
+* Visualized the coefficients for interpretability, especially for coaches
+* Included season-level controls to ensure robustness over time
+
+---
+
+## 📦 Dependencies
+
+* R and Quarto
+* Packages: `ggplot2`, `dplyr`, `broom`, `scales`, `ggtext`, `showtext`, `hoopR`
+* NBA Stats via the `sportsdataverse` API
+
+---
+
+*Built with R, `ggplot2`, `broom`, `showtext`, `ggtext`, and `hoopR`. Data from NBA Stats via `sportsdataverse`.*
